@@ -50,3 +50,10 @@ next-env.d.ts
 
 # supabase
 /supabase
+
+# test-related
+/test-results/
+
+# markdown
+SETUP_STORAGE.md
+setup-database.md
