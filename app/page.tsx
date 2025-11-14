@@ -3,7 +3,7 @@ import DashboardContent from "@/components/dashboard";
 
 export default function Home() {
   return (
-    <DashboardLayout>
+    <DashboardLayout title="Dashboard">
       <DashboardContent />
     </DashboardLayout>
   );

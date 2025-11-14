@@ -59,7 +59,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b">
-        <div className="p-[9.5px]">
+        <div>
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Shield className="h-4 w-4 text-primary-foreground" />
@@ -129,15 +129,21 @@ export function AppSidebar() {
   )
 }
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+export function DashboardLayout({
+  children,
+  title = "Dashboard"
+}: {
+  children: React.ReactNode
+  title?: string
+}) {
   return (
     <SidebarProvider>
       <AppSidebar />
       <div className="flex h-screen w-full flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b bg-background px-6">
+        <header className="flex h-13 shrink-0 items-center gap-3 border-b bg-background px-6">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <h1 className="text-xl font-semibold">{title}</h1>
         </header>
         <main className="flex-1 overflow-auto bg-muted/10">
           {children}

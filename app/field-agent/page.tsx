@@ -1,12 +1,43 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/sidebar"
+import { Database } from "@/lib/database.types"
+
+type VisitRow = Database['public']['Tables']['visits']['Row']
+type ExtendedVisit = VisitRow & {
+  purpose?: string
+  photo_urls?: string[]
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import {
   Users,
   MapPin,
@@ -26,105 +57,122 @@ import {
   Brain,
   Zap
 } from "lucide-react"
+import { visitsService, borrowersService } from "@/lib/data-service"
+import { supabase } from "@/lib/supabase"
 
-interface FieldVisit {
-  id: string
-  borrowerName: string
-  businessType: string
-  location: string
-  scheduledDate: string
-  status: "scheduled" | "in-progress" | "completed" | "cancelled"
-  agent: string
-  priority: "high" | "medium" | "low"
-  hasReport: boolean
-  aiProcessed: boolean
+type Visit = ExtendedVisit & {
+  borrower: { name: string; business: string; status: string }
+  agent: { name: string }
 }
-
-interface Borrower {
-  id: string
-  name: string
-  business: string
-  location: string
-  lastVisit: string
-  nextVisit?: string
-  riskLevel: "low" | "medium" | "high"
-  needsVisit: boolean
-}
-
-const mockVisits: FieldVisit[] = [
-  {
-    id: "V001",
-    borrowerName: "Ibu Ratna",
-    businessType: "Home-based snack business",
-    location: "Desa Sukamaju, West Java",
-    scheduledDate: "2024-01-16",
-    status: "scheduled",
-    agent: "Agent Ahmad",
-    priority: "medium",
-    hasReport: false,
-    aiProcessed: false
-  },
-  {
-    id: "V002",
-    borrowerName: "Maria Rodriguez",
-    businessType: "Tailoring service",
-    location: "Desa Makmur, Central Java",
-    scheduledDate: "2024-01-15",
-    status: "in-progress",
-    agent: "Agent Siti",
-    priority: "high",
-    hasReport: true,
-    aiProcessed: false
-  },
-  {
-    id: "V003",
-    borrowerName: "Siti Nurhaliza",
-    businessType: "Warung (small shop)",
-    location: "Desa Harapan, East Java",
-    scheduledDate: "2024-01-14",
-    status: "completed",
-    agent: "Agent Budi",
-    priority: "low",
-    hasReport: true,
-    aiProcessed: true
-  }
-]
-
-const mockBorrowers: Borrower[] = [
-  {
-    id: "B001",
-    name: "Ibu Ratna",
-    business: "Home-based snack business",
-    location: "Desa Sukamaju, West Java",
-    lastVisit: "2024-01-10",
-    nextVisit: "2024-01-16",
-    riskLevel: "low",
-    needsVisit: true
-  },
-  {
-    id: "B002",
-    name: "Maria Rodriguez",
-    business: "Tailoring service",
-    location: "Desa Makmur, Central Java",
-    lastVisit: "2024-01-08",
-    nextVisit: "2024-01-15",
-    riskLevel: "medium",
-    needsVisit: true
-  },
-  {
-    id: "B003",
-    name: "Dewi Lestari",
-    business: "Vegetable stall",
-    location: "Desa Bersih, West Java",
-    lastVisit: "2024-01-12",
-    riskLevel: "medium",
-    needsVisit: false
-  }
-]
+type BorrowerRow = Database['public']['Tables']['borrowers']['Row']
+type Borrower = BorrowerRow
 
 export default function FieldAgentPage() {
-  const [visits] = useState<FieldVisit[]>(mockVisits)
-  const [borrowers] = useState<Borrower[]>(mockBorrowers)
+  const [visits, setVisits] = useState<Visit[]>([])
+  const [borrowers, setBorrowers] = useState<Borrower[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Dialog states
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
+  const [selectedBorrower, setSelectedBorrower] = useState<Borrower | null>(null)
+
+  // Form state
+  const [scheduleForm, setScheduleForm] = useState({
+    borrowerId: "",
+    scheduledDate: undefined as Date | undefined,
+    purpose: "",
+    notes: ""
+  })
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [visitsData, borrowersData] = await Promise.all([
+          visitsService.getAll(),
+          borrowersService.getAll()
+        ])
+        setVisits(visitsData as Visit[])
+        setBorrowers(borrowersData)
+      } catch (error) {
+        console.error('Error loading field agent data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  // Handle schedule visit
+  const handleScheduleVisit = async (borrower?: Borrower) => {
+    if (borrower) {
+      setScheduleForm({
+        borrowerId: borrower.id,
+        scheduledDate: undefined,
+        purpose: "",
+        notes: ""
+      })
+    }
+    setScheduleDialogOpen(true)
+  }
+
+  const handleSubmitSchedule = async () => {
+    try {
+      if (!scheduleForm.scheduledDate) {
+        alert('Please select a visit date')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('visits')
+        .insert({
+          borrower_id: scheduleForm.borrowerId || borrowers[0]?.id,
+          agent_id: '00000000-0000-0000-0000-000000000001', // Mock agent ID
+          scheduled_date: scheduleForm.scheduledDate.toISOString(),
+          status: 'scheduled',
+          purpose: scheduleForm.purpose,
+          notes: scheduleForm.notes
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Refresh visits
+      const visitsData = await visitsService.getAll()
+      setVisits(visitsData as Visit[])
+      setScheduleDialogOpen(false)
+      setScheduleForm({ borrowerId: "", scheduledDate: undefined, purpose: "", notes: "" })
+    } catch (error) {
+      console.error('Error scheduling visit:', error)
+      alert('Failed to schedule visit')
+    }
+  }
+
+  // Handle start visit
+  const handleStartVisit = async (visit: Visit) => {
+    try {
+      const { error } = await supabase
+        .from('visits')
+        .update({ status: 'in-progress' })
+        .eq('id', visit.id)
+
+      if (error) throw error
+
+      // Update local state
+      setVisits(visits.map(v => v.id === visit.id ? { ...v, status: 'in-progress' } : v))
+    } catch (error) {
+      console.error('Error starting visit:', error)
+      alert('Failed to start visit')
+    }
+  }
+
+  // Handle view details
+  const handleViewDetails = (visit: Visit) => {
+    setSelectedVisit(visit)
+    setViewDialogOpen(true)
+  }
 
   
   const stats = {
@@ -132,24 +180,98 @@ export default function FieldAgentPage() {
     completed: visits.filter(v => v.status === "completed").length,
     scheduled: visits.filter(v => v.status === "scheduled").length,
     inProgress: visits.filter(v => v.status === "in-progress").length,
-    aiProcessed: visits.filter(v => v.aiProcessed).length
+    aiProcessed: visits.filter(v => v.notes && v.notes.length > 0).length
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout title="Field Agent Portal">
+        <div className="flex-1 space-y-8 p-8">
+          {/* Header Skeleton */}
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-6 w-96" />
+            <div className="flex gap-2">
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-40" />
+            </div>
+          </div>
+
+          {/* Stats Overview Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-16 mb-2" />
+                  <Skeleton className="h-3 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Tabs Skeleton */}
+          <Card>
+            <CardHeader>
+              <div className="flex gap-2">
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Search Bar Skeleton */}
+              <div className="flex gap-4">
+                <Skeleton className="h-10 flex-1" />
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+
+              {/* Visit Cards Skeleton */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                      <Skeleton className="h-6 w-40 mb-2" />
+                      <Skeleton className="h-4 w-32" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <div className="flex gap-2 pt-2">
+                        <Skeleton className="h-9 flex-1" />
+                        <Skeleton className="h-9 flex-1" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout title="Field Agent Portal">
       <div className="flex-1 space-y-8 p-8">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Field Agent Portal</h1>
-            <p className="text-muted-foreground">Manage field visits and collect multimodal data for AI analysis</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline">
               <Upload className="h-4 w-4 mr-2" />
               Bulk Upload
             </Button>
-            <Button>
+            <Button onClick={() => handleScheduleVisit()}>
               <Plus className="h-4 w-4 mr-2" />
               Schedule Visit
             </Button>
@@ -221,7 +343,7 @@ export default function FieldAgentPage() {
           <TabsContent value="visits" className="space-y-6">
             {/* Search and Filters */}
             <Card>
-              <CardContent className="">
+              <CardContent>
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1">
                     <div className="relative">
@@ -250,76 +372,65 @@ export default function FieldAgentPage() {
 
             {/* Visits List */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visits.map((visit) => (
-                <Card key={visit.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs ${
-                        visit.priority === "high" ? "text-red-600" :
-                        visit.priority === "medium" ? "text-yellow-600" :
-                        "text-gray-600"
-                      }`}>
-                        {visit.priority}
-                      </span>
-                      <span className={`text-xs ${
-                        visit.status === "completed" ? "text-green-600" :
-                        visit.status === "in-progress" ? "text-blue-600" :
-                        visit.status === "scheduled" ? "text-gray-600" :
-                        "text-red-600"
-                      }`}>
-                        {visit.status}
-                      </span>
-                    </div>
-                    <CardTitle className="text-lg">{visit.borrowerName}</CardTitle>
-                    <CardDescription>{visit.businessType}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      {visit.location}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      {visit.scheduledDate}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      Agent: {visit.agent}
-                    </div>
-                    <div className="flex items-center gap-2 pt-2">
-                      {visit.hasReport && (
-                        <span className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded flex items-center gap-1">
-                          <FileText className="h-3 w-3" />
-                          Report
+              {visits.length === 0 ? (
+                <div className="col-span-3 text-center text-muted-foreground py-8">
+                  No visits found
+                </div>
+              ) : (
+                visits.map((visit) => (
+                  <Card key={visit.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs ${
+                          visit.status === "completed" ? "text-chart-1" :
+                          visit.status === "in-progress" ? "text-primary" :
+                          visit.status === "scheduled" ? "text-muted-foreground" :
+                          "text-destructive"
+                        }`}>
+                          {visit.status}
                         </span>
-                      )}
-                      {visit.aiProcessed && (
-                        <span className="text-xs px-2 py-1 bg-green-200 text-green-700 rounded flex items-center gap-1">
-                          <Brain className="h-3 w-3" />
-                          AI
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <Button size="sm" variant="outline" className="flex-1">
-                        View Details
-                      </Button>
-                      {visit.status === "scheduled" && (
-                        <Button size="sm" className="flex-1">
-                          Start Visit
+                      </div>
+                      <CardTitle className="text-lg">{visit.borrower.name}</CardTitle>
+                      <CardDescription>{visit.borrower.business}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(visit.scheduled_date).toLocaleDateString()}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        Agent: {visit.agent.name}
+                      </div>
+                      <div className="flex items-center gap-2 pt-2">
+                        {visit.notes && (
+                          <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            Notes
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button size="sm" variant="outline" className="flex-1" onClick={() => handleViewDetails(visit)}>
+                          View Details
                         </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        {visit.status === "scheduled" && (
+                          <Button size="sm" className="flex-1" onClick={() => handleStartVisit(visit)}>
+                            Start Visit
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="borrowers" className="space-y-6">
             {/* Search */}
             <Card>
-              <CardContent className="">
+              <CardContent>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -332,60 +443,78 @@ export default function FieldAgentPage() {
 
             {/* Borrowers Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {borrowers.map((borrower) => (
-                <Card key={borrower.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs ${
-                        borrower.riskLevel === "low" ? "text-green-600" :
-                        borrower.riskLevel === "medium" ? "text-yellow-600" :
-                        "text-red-600"
-                      }`}>
-                        {borrower.riskLevel} risk
-                      </span>
-                      {borrower.needsVisit && (
-                        <span className="text-xs text-gray-600 flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          Visit Needed
-                        </span>
-                      )}
-                    </div>
-                    <CardTitle className="text-lg">{borrower.name}</CardTitle>
-                    <CardDescription>{borrower.business}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      {borrower.location}
-                    </div>
-                    <div className="text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Last Visit:</span>
-                        <span>{borrower.lastVisit}</span>
+              {borrowers.map((borrower) => {
+                const riskLevel = borrower.credit_score && borrower.credit_score >= 700 ? "low" :
+                                 borrower.credit_score && borrower.credit_score >= 600 ? "medium" : "high"
+                const needsVisit = borrower.status === "pending" || borrower.status === "review"
+
+                return (
+                  <Card key={borrower.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <Badge
+                          className={`${
+                            riskLevel === "low"
+                              ? "bg-chart-1/10 text-chart-1 border-chart-1/20"
+                              : riskLevel === "medium"
+                              ? "bg-chart-3/10 text-chart-3 border-chart-3/20"
+                              : ""
+                          }`}
+                          variant={riskLevel === "high" ? "destructive" : "outline"}
+                        >
+                          {riskLevel} risk
+                        </Badge>
+                        {needsVisit && (
+                          <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20" variant="outline">
+                            <AlertTriangle className="h-3 w-3" />
+                            Visit Needed
+                          </Badge>
+                        )}
                       </div>
-                      {borrower.nextVisit && (
+                      <CardTitle className="text-lg">{borrower.name}</CardTitle>
+                      <CardDescription>{borrower.business}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-3">
+                      <div className="text-sm">
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Next Visit:</span>
-                          <span>{borrower.nextVisit}</span>
+                          <span className="text-muted-foreground">Status:</span>
+                          <span className={`font-medium ${
+                            borrower.status === "approved" ? "text-chart-1" :
+                            borrower.status === "pending" ? "text-chart-3" :
+                            "text-muted-foreground"
+                          }`}>{borrower.status}</span>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <Button size="sm" variant="outline" className="flex-1">
-                        <Phone className="h-3 w-3 mr-1" />
-                        Contact
-                      </Button>
-                      <Button size="sm" className="flex-1">
-                        <Navigation className="h-3 w-3 mr-1" />
-                        Navigate
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1">
-                        Schedule Visit
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Credit Score:</span>
+                          <span>{borrower.credit_score ?? 'N/A'}</span>
+                        </div>
+                        {borrower.ai_score && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">AI Score:</span>
+                            <span>{borrower.ai_score}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2 pt-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button size="sm" variant="outline">
+                            <Phone className="h-3 w-3 mr-1" />
+                            Contact
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Navigation className="h-3 w-3 mr-1" />
+                            Navigate
+                          </Button>
+                        </div>
+                        <Button size="sm" className="w-full" onClick={() => handleScheduleVisit(borrower)}>
+                          <Calendar className="h-3 w-3 mr-2" />
+                          Schedule Visit
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </TabsContent>
 
@@ -400,7 +529,7 @@ export default function FieldAgentPage() {
                   </CardTitle>
                   <CardDescription>Essential tools for field agents on mobile devices</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="pt-6 space-y-4">
                   <div className="p-4 border rounded-lg">
                     <h4 className="font-medium mb-2">📱 Photo Capture</h4>
                     <p className="text-sm text-muted-foreground">Upload business and house photos directly from mobile</p>
@@ -429,7 +558,7 @@ export default function FieldAgentPage() {
                   </CardTitle>
                   <CardDescription>Frequently used tools and shortcuts</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="pt-6 space-y-4">
                   <Button className="w-full justify-start">
                     <Plus className="h-4 w-4 mr-2" />
                     New Field Visit
@@ -463,20 +592,20 @@ export default function FieldAgentPage() {
                 </CardTitle>
                 <CardDescription>Best practices for collecting quality multimodal data</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-2">📸 Photo Guidelines</h4>
-                    <ul className="text-sm text-blue-700 space-y-1">
+                  <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                    <h4 className="font-medium text-primary mb-2">📸 Photo Guidelines</h4>
+                    <ul className="text-sm text-primary/80 space-y-1">
                       <li>• Take clear, well-lit photos</li>
                       <li>• Show business equipment and inventory</li>
                       <li>• Include customer activity if possible</li>
                       <li>• Capture multiple angles</li>
                     </ul>
                   </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-2">📝 Report Quality</h4>
-                    <ul className="text-sm text-green-700 space-y-1">
+                  <div className="p-4 bg-chart-1/10 rounded-lg border border-chart-1/20">
+                    <h4 className="font-medium text-chart-1 mb-2">📝 Report Quality</h4>
+                    <ul className="text-sm text-chart-1/80 space-y-1">
                       <li>• Be specific about business operations</li>
                       <li>• Note income patterns and seasonality</li>
                       <li>• Document customer relationships</li>
@@ -488,6 +617,187 @@ export default function FieldAgentPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Schedule Visit Dialog */}
+        <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Schedule Field Visit</DialogTitle>
+              <DialogDescription>
+                Schedule a new field visit to assess borrower&apos;s business and home.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="borrower">Borrower</Label>
+                <Select
+                  value={scheduleForm.borrowerId}
+                  onValueChange={(value) => setScheduleForm({ ...scheduleForm, borrowerId: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a borrower" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {borrowers.map(b => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name} - {b.business}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="scheduledDate">Visit Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {scheduleForm.scheduledDate ? (
+                        scheduleForm.scheduledDate.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric"
+                        })
+                      ) : (
+                        <span className="text-muted-foreground">Pick a date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={scheduleForm.scheduledDate}
+                      onSelect={(date) => setScheduleForm({ ...scheduleForm, scheduledDate: date })}
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="purpose">Purpose</Label>
+                <Input
+                  id="purpose"
+                  placeholder="Initial assessment, follow-up, etc."
+                  value={scheduleForm.purpose}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, purpose: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Additional notes about the visit..."
+                  value={scheduleForm.notes}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, notes: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setScheduleDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmitSchedule}>Schedule Visit</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Visit Details Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Visit Details</DialogTitle>
+              <DialogDescription>
+                Complete information about this field visit.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedVisit && (
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Visit ID</Label>
+                    <div className="font-medium mt-1">{selectedVisit.id.slice(0, 8)}...</div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <div className="mt-1">
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        selectedVisit.status === "completed" ? "bg-chart-1/10 text-chart-1" :
+                        selectedVisit.status === "in-progress" ? "bg-chart-2/10 text-chart-2" :
+                        selectedVisit.status === "scheduled" ? "bg-muted text-muted-foreground" :
+                        "bg-destructive/10 text-destructive"
+                      }`}>
+                        {selectedVisit.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Borrower</Label>
+                  <div className="font-medium mt-1">{selectedVisit.borrower.name}</div>
+                  <div className="text-sm text-muted-foreground">{selectedVisit.borrower.business}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Scheduled Date</Label>
+                    <div className="font-medium mt-1">
+                      {new Date(selectedVisit.scheduled_date).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Field Agent</Label>
+                    <div className="font-medium mt-1">{selectedVisit.agent.name}</div>
+                  </div>
+                </div>
+                {selectedVisit.purpose && (
+                  <div>
+                    <Label className="text-muted-foreground">Purpose</Label>
+                    <div className="font-medium mt-1">{selectedVisit.purpose}</div>
+                  </div>
+                )}
+                {selectedVisit.notes && (
+                  <div>
+                    <Label className="text-muted-foreground">Notes</Label>
+                    <div className="mt-1 p-3 bg-muted rounded-md text-sm">
+                      {selectedVisit.notes}
+                    </div>
+                  </div>
+                )}
+                {selectedVisit.photo_urls && selectedVisit.photo_urls.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground">Photos</Label>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      {selectedVisit.photo_urls.length} photo(s) attached
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Created</Label>
+                    <div className="font-medium mt-1">
+                      {selectedVisit.created_at ? new Date(selectedVisit.created_at).toLocaleDateString() : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Last Updated</Label>
+                    <div className="font-medium mt-1">
+                      {selectedVisit.updated_at ? new Date(selectedVisit.updated_at).toLocaleDateString() : 'N/A'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   )

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,36 +12,52 @@ import {
   ColumnDef,
 } from "@tanstack/react-table"
 import {
-  Eye,
   FileText,
   Camera,
-  Calculator
+  Calculator,
+  TrendingUp,
+  Users,
+  CheckCircle,
+  Clock
 } from "lucide-react"
 import { borrowersService, dashboardService } from "@/lib/data-service"
-import { Database } from "@/lib/supabase"
+import { Database } from "@/lib/database.types"
 
-type Borrower = Database['public']['Tables']['borrowers']['Row']
+type BorrowerRow = Database['public']['Tables']['borrowers']['Row']
+type Borrower = BorrowerRow & {
+  risk_level?: string
+}
 
 // Helper functions - defined before columns to avoid reference errors
 const getScoreColor = (score: number) => {
-  if (score >= 700) return "text-green-600"
-  if (score >= 600) return "text-yellow-600"
-  return "text-red-600"
+  if (score >= 700) return "text-chart-1"
+  if (score >= 600) return "text-chart-3"
+  return "text-destructive"
 }
 
-const getIncomeConsistency = (claimed: number, estimated: number) => {
-  const difference = Math.abs(claimed - estimated)
-  const percentage = (difference / claimed) * 100
-  if (percentage <= 15) return { status: "Consistent", color: "text-green-600" }
-  if (percentage <= 30) return { status: "Minor Gap", color: "text-yellow-600" }
-  return { status: "Inconsistent", color: "text-red-600" }
+const getRiskBadge = (riskLevel: string | null | undefined) => {
+  if (!riskLevel) return <Badge variant="outline">N/A</Badge>
+
+  switch (riskLevel) {
+    case 'low':
+      return <Badge variant="default" className="bg-chart-1 text-primary-foreground">Low</Badge>
+    case 'medium':
+      return <Badge variant="default" className="bg-chart-3 text-primary-foreground">Medium</Badge>
+    case 'high':
+      return <Badge variant="destructive">High</Badge>
+    case 'critical':
+      return <Badge variant="destructive">Critical</Badge>
+    default:
+      return <Badge variant="outline">{riskLevel}</Badge>
+  }
 }
+
 
 const columns: ColumnDef<Borrower>[] = [
   {
     accessorKey: "id",
     header: "ID",
-    cell: ({ row }) => <div className="font-medium">{row.getValue("id").slice(0, 8)}...</div>,
+    cell: ({ row }) => <div className="font-medium">{(row.getValue("id") as string).slice(0, 8)}...</div>,
   },
   {
     accessorKey: "name",
@@ -72,8 +89,8 @@ const columns: ColumnDef<Borrower>[] = [
     cell: ({ row }) => {
       const borrower = row.original
       return (
-        <div className={`font-semibold ${getScoreColor(borrower.credit_score)}`}>
-          {borrower.credit_score}
+        <div className={`font-semibold ${getScoreColor(borrower.credit_score ?? 0)}`}>
+          {borrower.credit_score ?? 'N/A'}
         </div>
       )
     },
@@ -85,8 +102,8 @@ const columns: ColumnDef<Borrower>[] = [
       const borrower = row.original
       return (
         <div>
-          <div className={`font-semibold ${getScoreColor(borrower.ai_score)}`}>
-            {borrower.ai_score}
+          <div className={`font-semibold ${getScoreColor(borrower.ai_score ?? 0)}`}>
+            {borrower.ai_score ?? 'N/A'}
           </div>
           <div className="text-xs text-muted-foreground">AI</div>
         </div>
@@ -106,18 +123,26 @@ const columns: ColumnDef<Borrower>[] = [
     },
   },
   {
+    accessorKey: "risk_level",
+    header: "Risk Level",
+    cell: ({ row }) => {
+      const borrower = row.original
+      return getRiskBadge(borrower.risk_level)
+    },
+  },
+  {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
       const borrower = row.original
       return (
-        <span className={`text-xs ${
-          borrower.status === "approved" ? "text-green-600" :
-          borrower.status === "pending" ? "text-gray-600" :
-          "text-red-600"
-        }`}>
+        <Badge variant={
+          borrower.status === "approved" || borrower.status === "active" ? "default" :
+          borrower.status === "pending" ? "secondary" :
+          "outline"
+        }>
           {borrower.status}
-        </span>
+        </Badge>
       )
     },
   },
@@ -165,12 +190,13 @@ export default function DashboardContent() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="p-6">
-              <div className="h-4 bg-muted rounded w-24 mb-2"></div>
-              <div className="h-8 bg-muted rounded w-16 mb-2"></div>
-              <div className="h-3 bg-muted rounded w-32"></div>
+              <Skeleton className="h-4 w-24 mb-2" />
+              <Skeleton className="h-8 w-16 mb-2" />
+              <Skeleton className="h-3 w-32" />
             </Card>
           ))}
         </div>
+        <Skeleton className="h-96 w-full" />
       </div>
     )
   }
@@ -179,41 +205,45 @@ export default function DashboardContent() {
     <div className="flex-1 space-y-8 p-8">
       {/* AI-Powered Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Borrowers</p>
-              <p className="text-3xl font-bold mt-2">{stats.totalBorrowers}</p>
-              <p className="text-sm text-muted-foreground mt-1">Registered borrowers</p>
-            </div>
-          </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Borrowers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalBorrowers}</div>
+            <p className="text-xs text-muted-foreground">Registered borrowers</p>
+          </CardContent>
         </Card>
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Approved Loans</p>
-              <p className="text-3xl font-bold mt-2">{stats.approvedLoans}</p>
-              <p className="text-sm text-muted-foreground mt-1">Active loan portfolio</p>
-            </div>
-          </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved Loans</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.approvedLoans}</div>
+            <p className="text-xs text-muted-foreground">Active loan portfolio</p>
+          </CardContent>
         </Card>
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Pending</p>
-              <p className="text-3xl font-bold mt-2">{stats.pendingApplications}</p>
-              <p className="text-sm text-muted-foreground mt-1">Applications pending</p>
-            </div>
-          </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingApplications}</div>
+            <p className="text-xs text-muted-foreground">Applications pending</p>
+          </CardContent>
         </Card>
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Scheduled Visits</p>
-              <p className="text-3xl font-bold mt-2">{stats.scheduledVisits}</p>
-              <p className="text-sm text-muted-foreground mt-1">Field agent visits</p>
-            </div>
-          </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Scheduled Visits</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.scheduledVisits}</div>
+            <p className="text-xs text-muted-foreground">Field agent visits</p>
+          </CardContent>
         </Card>
       </div>
 
@@ -226,9 +256,9 @@ export default function DashboardContent() {
         </TabsList>
 
         <TabsContent value="applications" className="space-y-6">
-          <Card className="p-6">
+          <Card className="px-6">
             <div>
-              <h2 className="text-lg font-semibold mb-2">Amara AI Credit Applications</h2>
+              <h2 className="text-md font-semibold mb-2">Amara AI Credit Applications</h2>
               <p className="text-sm text-muted-foreground mb-6">
                 Applications processed with multimodal AI analysis (tabular + vision + text)
               </p>
@@ -295,18 +325,18 @@ export default function DashboardContent() {
                 </CardTitle>
                 <CardDescription>Visual insights from business and house photos</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-900">Ibu Ratna - Business Scale</h4>
-                  <p className="text-sm text-blue-700">Moderate inventory density, home-based setup, consistent customer traffic</p>
+              <CardContent className="pt-6 space-y-4">
+                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <h4 className="font-medium text-primary">Ibu Ratna - Business Scale</h4>
+                  <p className="text-sm text-primary/80">Moderate inventory density, home-based setup, consistent customer traffic</p>
                 </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <h4 className="font-medium text-green-900">Siti - Asset Quality</h4>
-                  <p className="text-sm text-green-700">Well-maintained equipment, organized space, business growth indicators</p>
+                <div className="p-3 bg-chart-1/10 rounded-lg border border-chart-1/20">
+                  <h4 className="font-medium text-chart-1">Siti - Asset Quality</h4>
+                  <p className="text-sm text-chart-1/80">Well-maintained equipment, organized space, business growth indicators</p>
                 </div>
-                <div className="p-3 bg-yellow-50 rounded-lg">
-                  <h4 className="font-medium text-yellow-900">Maria - Risk Factors</h4>
-                  <p className="text-sm text-yellow-700">Limited equipment, seasonal business patterns, higher competition</p>
+                <div className="p-3 bg-chart-3/10 rounded-lg border border-chart-3/20">
+                  <h4 className="font-medium text-chart-3">Maria - Risk Factors</h4>
+                  <p className="text-sm text-chart-3/80">Limited equipment, seasonal business patterns, higher competition</p>
                 </div>
               </CardContent>
             </Card>
@@ -318,18 +348,18 @@ export default function DashboardContent() {
                 </CardTitle>
                 <CardDescription>Text insights from field agent reports</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <h4 className="font-medium text-purple-900">Behavioral Consistency</h4>
-                  <p className="text-sm text-purple-700">All borrowers show consistent business engagement patterns</p>
+              <CardContent className="pt-6 space-y-4">
+                <div className="p-3 bg-chart-2/10 rounded-lg border border-chart-2/20">
+                  <h4 className="font-medium text-chart-2">Behavioral Consistency</h4>
+                  <p className="text-sm text-chart-2/80">All borrowers show consistent business engagement patterns</p>
                 </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <h4 className="font-medium text-green-900">Income Claims Analysis</h4>
-                  <p className="text-sm text-green-700">2 out of 3 applicants have consistent income reports vs visual evidence</p>
+                <div className="p-3 bg-chart-1/10 rounded-lg border border-chart-1/20">
+                  <h4 className="font-medium text-chart-1">Income Claims Analysis</h4>
+                  <p className="text-sm text-chart-1/80">2 out of 3 applicants have consistent income reports vs visual evidence</p>
                 </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-900">Risk Indicators</h4>
-                  <p className="text-sm text-blue-700">Maria shows income inconsistency requiring manual review</p>
+                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <h4 className="font-medium text-primary">Risk Indicators</h4>
+                  <p className="text-sm text-primary/80">Maria shows income inconsistency requiring manual review</p>
                 </div>
               </CardContent>
             </Card>
@@ -342,7 +372,7 @@ export default function DashboardContent() {
               <CardTitle>Multimodal Data Sources</CardTitle>
               <CardDescription>Integration of tabular, visual, and text data for comprehensive scoring</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium mb-2 flex items-center gap-2">

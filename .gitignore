@@ -44,3 +44,9 @@ next-env.d.ts
 .serena/
 .playwright-mcp/
 .mcp.json
+
+# docs
+/docs
+
+# supabase
+/supabase

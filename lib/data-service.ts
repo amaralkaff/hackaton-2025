@@ -81,7 +81,7 @@ export const fieldAgentsService = {
       .single()
 
     if (error) throw error
-    return data as FieldAgent[]
+    return data as FieldAgent
   }
 }
 
@@ -115,7 +115,7 @@ export const visitsService = {
     return data as (Visit & { borrower: { name: string; business: string; status: string } })[]
   },
 
-  async create(visit: Omit<Database['public']['Tables']['visits']['Insert'], 'id'>) {
+  async create(visit: Database['public']['Tables']['visits']['Insert']) {
     const { data, error } = await supabase
       .from('visits')
       .insert(visit)
@@ -166,5 +166,85 @@ export const dashboardService = {
 
     if (error) throw error
     return data as Borrower[]
+  }
+}
+
+// Insights service
+export const insightsService = {
+  async getAIInsights() {
+    const { data: borrowers, error } = await supabase
+      .from('borrowers')
+      .select('*')
+
+    if (error) throw error
+
+    const total = borrowers?.length || 0
+    const withAIScore = borrowers?.filter(b => b.ai_score && b.ai_score > 0).length || 0
+    const highCreditScore = borrowers?.filter(b => b.credit_score && b.credit_score >= 700).length || 0
+    const approved = borrowers?.filter(b => b.status === 'approved').length || 0
+    const pending = borrowers?.filter(b => b.status === 'pending').length || 0
+    const aiImprovement = borrowers?.filter(b =>
+      b.ai_score && b.credit_score && b.ai_score > b.credit_score
+    ).length || 0
+
+    return {
+      aiInsights: [
+        {
+          type: "vision",
+          title: "AI Score Coverage",
+          description: `${Math.round((withAIScore / total) * 100)}% of borrowers have AI credit scores`,
+          impact: "positive" as const,
+          count: withAIScore
+        },
+        {
+          type: "nlp",
+          title: "Credit Score Analysis",
+          description: `${Math.round((highCreditScore / total) * 100)}% of borrowers maintain good credit standing (700+)`,
+          impact: "positive" as const,
+          count: highCreditScore
+        },
+        {
+          type: "risk",
+          title: "Pending Applications",
+          description: `${pending} applications awaiting AI analysis and review`,
+          impact: pending > total * 0.3 ? "negative" as const : "neutral" as const,
+          count: pending
+        },
+        {
+          type: "trend",
+          title: "AI Score Improvement",
+          description: `${Math.round((aiImprovement / total) * 100)}% of borrowers received higher scores through AI analysis`,
+          impact: "positive" as const,
+          count: aiImprovement
+        }
+      ],
+      performanceMetrics: {
+        approvalRate: approved > 0 ? Math.round((approved / total) * 100) : 0,
+        aiCoverage: withAIScore > 0 ? Math.round((withAIScore / total) * 100) : 0,
+        totalBorrowers: total,
+        avgAIScore: borrowers?.reduce((sum, b) => sum + (b.ai_score || 0), 0) / total || 0
+      }
+    }
+  },
+
+  async getVisitStats() {
+    const { data: visits, error } = await supabase
+      .from('visits')
+      .select('*')
+
+    if (error) throw error
+
+    const total = visits?.length || 0
+    const completed = visits?.filter(v => v.status === 'completed').length || 0
+    const scheduled = visits?.filter(v => v.status === 'scheduled').length || 0
+    const withNotes = visits?.filter(v => v.notes && v.notes.length > 0).length || 0
+
+    return {
+      totalVisits: total,
+      completed,
+      scheduled,
+      withNotes,
+      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0
+    }
   }
 }
