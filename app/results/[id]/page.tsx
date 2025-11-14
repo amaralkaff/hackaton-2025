@@ -8,16 +8,17 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, TrendingUp, AlertCircle, DollarSign, Brain, FileText, Home, Building2, ChevronRight, Download } from "lucide-react"
+import { CheckCircle2, TrendingUp, AlertCircle, DollarSign, Brain, FileText, Download } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 
 interface AnalysisStep {
   id: string
   title: string
   description: string
-  icon: any
+  icon: LucideIcon
   progress: number
   status: 'pending' | 'processing' | 'completed'
-  result?: any
+  result?: Record<string, unknown>
 }
 
 export default function ResultsPage() {

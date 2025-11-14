@@ -57,3 +57,6 @@ next-env.d.ts
 # markdown
 SETUP_STORAGE.md
 setup-database.md
+
+# scripts
+/scripts/
