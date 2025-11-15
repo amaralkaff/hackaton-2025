@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   useReactTable,
   getCoreRowModel,
@@ -344,7 +345,7 @@ const filteredBorrowers = useMemo(() => {
 
   if (loading) {
     return (
-      <DashboardLayout title="Borrower Management">
+      <DashboardLayout title="Loan Applications">
         <div className="flex-1 space-y-8 p-8">
           <Skeleton className="h-12 w-full" />
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
@@ -376,10 +377,19 @@ const filteredBorrowers = useMemo(() => {
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
-            <Button onClick={() => setAddDialogOpen(true)}>
-              <Users className="h-4 w-4 mr-2" />
-              Add Borrower
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={() => setAddDialogOpen(true)}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Quick Add (No AI)
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Quick entry without AI analysis or photo uploads</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
 

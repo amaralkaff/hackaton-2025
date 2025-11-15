@@ -32,12 +32,12 @@ const navigationItems = [
     icon: Home,
   },
   {
-    title: "New Application",
+    title: "AI Credit Scoring",
     url: "/scoring",
     icon: CreditCard,
   },
   {
-    title: "Borrowers",
+    title: "Loan Applications",
     url: "/borrowers",
     icon: Users,
   },

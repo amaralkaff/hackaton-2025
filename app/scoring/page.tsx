@@ -173,7 +173,7 @@ export default function ScoringPage() {
 
   if (loading) {
     return (
-      <DashboardLayout title="New Credit Application">
+      <DashboardLayout title="AI Credit Scoring">
         <div className="flex-1 space-y-8 p-8">
           {/* Header Skeleton */}
           <div className="flex items-center gap-3 mb-6">
@@ -276,8 +276,15 @@ export default function ScoringPage() {
   }
 
   return (
-    <DashboardLayout title="New Credit Application">
+    <DashboardLayout title="AI Credit Scoring">
       <div className="flex-1 space-y-8 p-8">
+        {/* Page Description */}
+        <div className="mb-6">
+          <p className="text-sm text-muted-foreground">
+            Full AI-powered credit assessment with multimodal data analysis (photos, documents, and field notes)
+          </p>
+        </div>
+
         {/* Progress Steps - Horizontal Stepper */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
