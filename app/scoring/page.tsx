@@ -278,7 +278,7 @@ export default function ScoringPage() {
   return (
     <DashboardLayout title="New Credit Application">
       <div className="flex-1 space-y-8 p-8">
-        {/* Progress Steps */}
+        {/* Progress Steps - Horizontal Stepper */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${activeStep >= 1 ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
@@ -319,15 +319,16 @@ export default function ScoringPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Form */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Section: Borrower Information */}
-            <div className="space-y-6">
-              <div className="pb-3 border-b">
-                <h2 className="text-2xl font-semibold flex items-center gap-2">
-                  <User className="h-6 w-6 text-chart-2" />
-                  Borrower Information
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">Enter basic borrower and business details</p>
-              </div>
+            {/* Step 1: Borrower Information */}
+            {activeStep === 1 && (
+              <div className="space-y-6">
+                <div className="pb-3 border-b">
+                  <h2 className="text-2xl font-semibold flex items-center gap-2">
+                    <User className="h-6 w-6 text-chart-2" />
+                    Borrower Information
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">Enter basic borrower and business details</p>
+                </div>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -442,17 +443,19 @@ export default function ScoringPage() {
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Section: Upload Multimodal Data */}
-            <div className="space-y-6">
-              <div className="pb-3 border-b">
-                <h2 className="text-2xl font-semibold flex items-center gap-2">
-                  <Upload className="h-6 w-6 text-chart-2" />
-                  Upload Multimodal Data
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">Upload business photos, house photos, and field agent notes for AI analysis</p>
               </div>
+            )}
+
+            {/* Step 2: Upload Multimodal Data */}
+            {activeStep === 2 && (
+              <div className="space-y-6">
+                <div className="pb-3 border-b">
+                  <h2 className="text-2xl font-semibold flex items-center gap-2">
+                    <Upload className="h-6 w-6 text-chart-2" />
+                    Upload Multimodal Data
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">Upload business photos, house photos, and field agent notes for AI analysis</p>
+                </div>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Business Photo Upload */}
@@ -606,7 +609,50 @@ export default function ScoringPage() {
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            )}
+
+            {/* Step 3: AI Analysis */}
+            {activeStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-6 w-6" />
+                    AI Processing
+                  </CardTitle>
+                  <CardDescription>Analyzing your application with Amara AI</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4" />
+                    <p className="text-lg font-medium">Processing your application...</p>
+                    <p className="text-sm text-muted-foreground mt-2">This may take a few moments</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 4: Results */}
+            {activeStep === 4 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                    Analysis Complete
+                  </CardTitle>
+                  <CardDescription>Your credit analysis is ready</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      View detailed results on the results page
+                    </AlertDescription>
+                  </Alert>
+                  <Button className="mt-4 w-full">View Full Results</Button>
+                </CardContent>
+              </Card>
+            )}
 
             {error && (
               <Alert variant="destructive">
@@ -616,18 +662,50 @@ export default function ScoringPage() {
             )}
 
             {/* Actions */}
-            <div className="flex gap-4 pt-4">
-              <Button
-                onClick={handleProcessWithAI}
-                disabled={processing}
-                className="flex items-center gap-2"
-              >
-                <Brain className="h-4 w-4" />
-                {processing ? 'Processing...' : 'Process with Amara AI'}
-              </Button>
-              <Button variant="outline" disabled={processing}>Save Draft</Button>
-              <Button variant="outline" disabled={processing}>Cancel</Button>
-            </div>
+            {activeStep <= 2 && (
+              <div className="flex justify-between gap-4 pt-4">
+                <div className="flex gap-4">
+                  {activeStep > 1 && activeStep < 3 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setActiveStep(activeStep - 1)}
+                      disabled={processing}
+                    >
+                      Previous Step
+                    </Button>
+                  )}
+                  {activeStep === 1 && (
+                    <Button
+                      onClick={() => {
+                        if (!formData.fullName || !formData.location || !formData.businessType || !formData.loanAmount) {
+                          setError('Please fill in all required fields (marked with *)')
+                          return
+                        }
+                        setError(null)
+                        setActiveStep(2)
+                      }}
+                      disabled={processing}
+                    >
+                      Next: Upload Data
+                    </Button>
+                  )}
+                  {activeStep === 2 && (
+                    <Button
+                      onClick={handleProcessWithAI}
+                      disabled={processing}
+                      className="flex items-center gap-2"
+                    >
+                      <Brain className="h-4 w-4" />
+                      {processing ? 'Processing...' : 'Process with Amara AI'}
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-4">
+                  <Button variant="outline" disabled={processing}>Save Draft</Button>
+                  <Button variant="outline" disabled={processing}>Cancel</Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column - AI Analysis Preview */}
