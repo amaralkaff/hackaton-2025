@@ -324,7 +324,6 @@ export default function ScoringPage() {
               <div className="space-y-6">
                 <div className="pb-3 border-b">
                   <h2 className="text-2xl font-semibold flex items-center gap-2">
-                    <User className="h-6 w-6 text-chart-2" />
                     Borrower Information
                   </h2>
                   <p className="text-sm text-muted-foreground mt-1">Enter basic borrower and business details</p>
@@ -708,91 +707,181 @@ export default function ScoringPage() {
             )}
           </div>
 
-          {/* Right Column - AI Analysis Preview */}
+          {/* Right Column - Contextual Help */}
           <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  AI Analysis Preview
-                </CardTitle>
-                <CardDescription>Real-time AI insights from multimodal data</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                {!businessPhoto && !housePhoto && !fieldNotes ? (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Upload photos and documents to enable AI analysis
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      {[businessPhoto, housePhoto, fieldNotes].filter(Boolean).length} file(s) uploaded and ready for AI processing
-                    </AlertDescription>
-                  </Alert>
-                )}
+            {/* Step 1: Basic Info Help */}
+            {activeStep === 1 && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Required Information</CardTitle>
+                    <CardDescription>Fields marked with * are mandatory</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                        <User className="h-5 w-5 text-primary mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Borrower Details</p>
+                          <p className="text-xs text-muted-foreground">Full name and location are required</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                        <DollarSign className="h-5 w-5 text-chart-1 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Business Information</p>
+                          <p className="text-xs text-muted-foreground">Type and loan amount needed</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>What's Next?</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">After completing basic information, you'll upload photos and documents for AI analysis.</p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <span className="text-sm font-medium">Gemini Vision</span>
-                    <span className={`text-xs px-2 py-1 rounded ${businessPhoto || housePhoto ? 'bg-chart-1/10 text-chart-1' : 'bg-muted text-muted-foreground'}`}>
-                      {businessPhoto || housePhoto ? 'Active' : 'Ready'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <span className="text-sm font-medium">Gemini NLP</span>
-                    <span className={`text-xs px-2 py-1 rounded ${fieldNotes ? 'bg-chart-1/10 text-chart-1' : 'bg-muted text-muted-foreground'}`}>
-                      {fieldNotes ? 'Active' : 'Ready'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <span className="text-sm font-medium">ML Baseline Model</span>
-                    <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded">Ready</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Step 2: Upload Help */}
+            {activeStep === 2 && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Upload Guidelines</CardTitle>
+                    <CardDescription>Ensure clear, high-quality images</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+                        <Camera className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-blue-900">Business Photo</p>
+                          <p className="text-xs text-blue-700">Show storefront, inventory, or operations</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                        <User className="h-5 w-5 text-green-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-green-900">House Photo</p>
+                          <p className="text-xs text-green-700">Front view of borrower's residence</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
+                        <FileText className="h-5 w-5 text-purple-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-purple-900">Field Notes</p>
+                          <p className="text-xs text-purple-700">Agent observations and comments</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI Analysis Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {!businessPhoto && !housePhoto && !fieldNotes ? (
+                      <Alert>
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          No files uploaded yet
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {[businessPhoto, housePhoto, fieldNotes].filter(Boolean).length} file(s) ready for processing
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Expected Results</CardTitle>
-                <CardDescription>What Amara AI will provide</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Calculator className="h-4 w-4 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">Credit Score</p>
-                      <p className="text-xs text-muted-foreground">Traditional + AI scoring</p>
+            {/* Step 3: Processing */}
+            {activeStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>AI Processing</CardTitle>
+                  <CardDescription>Analyzing multimodal data</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <span className="text-sm font-medium">Gemini Vision</span>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                        <span className="text-xs text-muted-foreground">Processing</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <span className="text-sm font-medium">Gemini NLP</span>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                        <span className="text-xs text-muted-foreground">Processing</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <span className="text-sm font-medium">ML Baseline</span>
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                        <span className="text-xs text-muted-foreground">Processing</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="h-4 w-4 text-chart-1" />
-                    <div>
-                      <p className="text-sm font-medium">Income Reality Check</p>
-                      <p className="text-xs text-muted-foreground">Claimed vs AI-estimated income</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 4: Results */}
+            {activeStep === 4 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Analysis Results</CardTitle>
+                  <CardDescription>What Amara AI provides</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Calculator className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">Credit Score</p>
+                        <p className="text-xs text-muted-foreground">Traditional + AI scoring</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="h-4 w-4 text-chart-1" />
+                      <div>
+                        <p className="text-sm font-medium">Income Reality Check</p>
+                        <p className="text-xs text-muted-foreground">Claimed vs AI-estimated</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Target className="h-4 w-4 text-destructive" />
+                      <div>
+                        <p className="text-sm font-medium">Risk Assessment</p>
+                        <p className="text-xs text-muted-foreground">Multimodal risk indicators</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-4 w-4 text-chart-2" />
+                      <div>
+                        <p className="text-sm font-medium">Loan Recommendation</p>
+                        <p className="text-xs text-muted-foreground">AI-powered amount</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Target className="h-4 w-4 text-destructive" />
-                    <div>
-                      <p className="text-sm font-medium">Risk Assessment</p>
-                      <p className="text-xs text-muted-foreground">Multimodal risk indicators</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-4 w-4 text-chart-2" />
-                    <div>
-                      <p className="text-sm font-medium">Loan Recommendation</p>
-                      <p className="text-xs text-muted-foreground">AI-powered loan amount suggestion</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
